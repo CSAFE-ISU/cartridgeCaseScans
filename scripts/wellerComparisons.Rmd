@@ -1,0 +1,492 @@
+---
+title: "R Notebook"
+---
+
+```{r setup}
+library(tidyverse)
+library(cmcR)
+library(x3ptools)
+```
+
+```{r}
+wellerData <- data.frame(fileName = list.files("../wellerMasked",pattern = "x3p",full.names = TRUE,recursive = TRUE)) %>%
+  mutate(scanName = map_chr(fileName,
+                            ~ {
+                              
+                              ret <- str_split(.,"/")[[1]]
+                              
+                              return(str_remove(ret[length(ret)],"\\.x3p"))
+                              
+                            }),
+         processedScan = map(fileName,
+                             function(file){
+                               
+                               dat <- x3p_read(file)
+                               
+                               dat$surface.matrix[t(as.matrix(dat$mask)) == "#CD7F32FF"] <- NA
+                               
+                               dat <- dat %>%
+                                 cmcR::preProcess_removeTrend(statistic = "quantile",
+                                                              tau = .5,
+                                                              method = "fn") %>%
+                                 cmcR::preProcess_gaussFilter() %>%
+                                 # x3p_sample() %>%
+                                 cmcR::preProcess_removeTrend(statistic = "quantile",
+                                                              tau = .5,
+                                                              method = "fn") %>%
+                                 cmcR::preProcess_gaussFilter() %>%
+                                 x3p_sample() %>%
+                                 preProcess_dilateFP(dilationRadius = round(50/4)) %>% 
+                                 preProcess_erodePrimer(erosionRadius = round(50/4))
+                               
+                               dat <- dat %>%
+                                 preProcess_cropWS(robust = FALSE,
+                                                   croppingProp = .5)
+                               
+                               dat$mask <- NULL
+                               
+                             }))
+
+wellerProcessedScans <- wellerData
+
+save(wellerData,file = "~/nbtrdScans/wellerProcessedScans.RData")
+
+x3pListPlot(wellerData %>%
+              pull(processedScan) %>%
+              set_names(wellerData$scanName),
+            type = "list")
+```
+
+```{r}
+# future:::ClusterRegistry("stop")
+
+future::plan(future::multisession(workers = future::availableCores() - 6))
+
+furrr::future_walk(
+  # test_redoInds,
+  1:length(wellerData$processedScan),
+  function(refInd){
+    purrr::walk(refInd:length(wellerData$processedScan),
+                function(targetInd){
+                  # browser()
+                  
+                  refName <- wellerData$scanName[refInd]
+                  targetName <- wellerData$scanName[targetInd]
+                  
+                  reference <- wellerData$processedScan[[refInd]]
+                  target <- wellerData$processedScan[[targetInd]]
+                  
+                  print(paste0(refName," vs. ",targetName))
+                  
+                  dat <- map_dfr(seq(-30,30,by = 3),
+                                 function(theta){
+                                   
+                                   reference %>%
+                                     cmcR::comparison_cellDivision(numCells = 64) %>%
+                                     mutate(refMissingProp = cmcR::comparison_calcPropMissing(cellHeightValues),
+                                            refMissingCount = map_dbl(cellHeightValues,~ sum(is.na(.$surface.matrix)))) %>%
+                                     filter(refMissingProp <= .85) %>%
+                                     mutate(regionHeightValues = comparison_getTargetRegions(cellHeightValues,
+                                                                                             target = target,
+                                                                                             theta = theta,
+                                                                                             regionSizeMultiplier = 9)) %>%
+                                     mutate(targMissingProp = cmcR::comparison_calcPropMissing(regionHeightValues),
+                                            targMissingCount = map_dbl(regionHeightValues,~ sum(is.na(.$surface.matrix)))) %>%
+                                     filter(targMissingProp <= .85) %>%
+                                     dplyr::mutate(cellHeightValues = comparison_standardizeHeights(.data$cellHeightValues),
+                                                   regionHeightValues = comparison_standardizeHeights(.data$regionHeightValues)) %>%
+                                     dplyr::mutate(cellHeightValues_replaced = comparison_replaceMissing(.data$cellHeightValues),
+                                                   regionHeightValues_replaced = comparison_replaceMissing(.data$regionHeightValues)) %>%
+                                     dplyr::mutate(fft_ccf_df = comparison_fft_ccf(cellHeightValues = .data$cellHeightValues_replaced,
+                                                                                   regionHeightValues = .data$regionHeightValues_replaced)) %>%
+                                     dplyr::mutate(alignedTargetCell = comparison_alignedTargetCell(cellHeightValues,regionHeightValues,fft_ccf_df)) %>%
+                                     mutate(jointlyMissing = map2_dbl(cellHeightValues,alignedTargetCell,~ sum(is.na(.x$surface.matrix) & is.na(.y$surface.matrix))),
+                                            pairwiseCompCor = map2_dbl(cellHeightValues,alignedTargetCell,
+                                                                       ~ cor(c(.x$surface.matrix),c(.y$surface.matrix),
+                                                                             use = "pairwise.complete.obs"))) %>%
+                                     tidyr::unnest(.data$fft_ccf_df) %>%
+                                     select(cellIndex,
+                                            # cellHeightValues,
+                                            refMissingProp,refMissingCount,
+                                            # regionHeightValues,
+                                            targMissingProp,targMissingCount,
+                                            fft_ccf,x,y,pairwiseCompCor,
+                                            # alignedTargetCell,
+                                            jointlyMissing) %>%
+                                     mutate(comparisonName = paste0(refName," vs. ",targetName),
+                                            theta = theta,
+                                            direction = "refToTarget")
+                                   
+                                 })
+                  
+                  dat1 <- 
+                    map_dfr(seq(-30,30,by = 3),
+                            function(theta){
+                              
+                              target %>%
+                                cmcR::comparison_cellDivision(numCells = 64) %>%
+                                mutate(refMissingProp = cmcR::comparison_calcPropMissing(cellHeightValues),
+                                       refMissingCount = map_dbl(cellHeightValues,~ sum(is.na(.$surface.matrix)))) %>%
+                                filter(refMissingProp <= .85) %>%
+                                mutate(regionHeightValues = comparison_getTargetRegions(cellHeightValues,
+                                                                                        target = reference,
+                                                                                        theta = theta,
+                                                                                        regionSizeMultiplier = 9)) %>%
+                                mutate(targMissingProp = cmcR::comparison_calcPropMissing(regionHeightValues),
+                                       targMissingCount = map_dbl(regionHeightValues,~ sum(is.na(.$surface.matrix)))) %>%
+                                filter(targMissingProp <= .85) %>%
+                                dplyr::mutate(cellHeightValues = comparison_standardizeHeights(.data$cellHeightValues),
+                                              regionHeightValues = comparison_standardizeHeights(.data$regionHeightValues)) %>%
+                                dplyr::mutate(cellHeightValues_replaced = comparison_replaceMissing(.data$cellHeightValues),
+                                              regionHeightValues_replaced = comparison_replaceMissing(.data$regionHeightValues)) %>%
+                                dplyr::mutate(fft_ccf_df = comparison_fft_ccf(cellHeightValues = .data$cellHeightValues_replaced,
+                                                                              regionHeightValues = .data$regionHeightValues_replaced)) %>%
+                                dplyr::mutate(alignedTargetCell = comparison_alignedTargetCell(cellHeightValues,regionHeightValues,fft_ccf_df)) %>%
+                                mutate(jointlyMissing = map2_dbl(cellHeightValues,alignedTargetCell,~ sum(is.na(.x$surface.matrix) & is.na(.y$surface.matrix))),
+                                       pairwiseCompCor = map2_dbl(cellHeightValues,alignedTargetCell,
+                                                                  ~ cor(c(.x$surface.matrix),c(.y$surface.matrix),
+                                                                        use = "pairwise.complete.obs"))) %>%
+                                tidyr::unnest(.data$fft_ccf_df) %>%
+                                select(cellIndex,
+                                       # cellHeightValues,
+                                       refMissingProp,refMissingCount,
+                                       # regionHeightValues,
+                                       targMissingProp,targMissingCount,
+                                       fft_ccf,x,y,pairwiseCompCor,
+                                       # alignedTargetCell,
+                                       jointlyMissing) %>%
+                                mutate(comparisonName = paste0(refName," vs. ",targetName),
+                                       theta = theta,
+                                       direction = "targetToRef")
+                              
+                            })
+                  
+                  compData <- bind_rows(dat,dat1)
+                  
+                  save(compData,file = paste0("~/nbtrdScans/wellerComparisons/",refName,"_vs_",targetName,".RData"))
+                  
+                })
+  })
+
+# future:::ClusterRegistry("stop")
+
+# future::plan(future::multisession(workers = future::availableCores() - 6))
+
+cmcCalced <- list.files("~/nbtrdScans/wellerCMCs/")
+
+cmcNeedCalc <- list.files("~/nbtrdScans/wellerComparisons/")
+
+furrr::future_walk(
+  # walk(
+  cmcNeedCalc[!(cmcNeedCalc %in% cmcCalced)],
+  # unique(c(train_redoCMCs,cmcNeedCalc[!(cmcNeedCalc %in% cmcCalced)])),
+  function(fileName){
+    
+    print(fileName)
+    
+    load(paste0("~/nbtrdScans/wellerComparisons/",fileName))
+    
+    # debugonce(calcCMC_grid)
+    
+    CMCs <- calcCMC_grid(comparisonData = compData)
+    
+    compName <- str_remove(fileName,".RData")
+    
+    save(CMCs,file = paste0("~/nbtrdScans/wellerCMCs/",compName,".RData"))
+    
+  })
+
+cmcCalced <- list.files("~/nbtrdScans/wellerCombinedCMCs/")
+
+cmcNeedCalc <- list.files("~/nbtrdScans/wellerCMCs/")
+
+furrr::future_walk(
+  # furrr::future_map(
+  # list.files("topMatch_largerTrainSet_train_CMCs/",full.names = TRUE),
+  paste0("~/nbtrdScans/wellerCMCs/",cmcNeedCalc[!(cmcNeedCalc %in% cmcCalced)]),
+  ~ {
+    
+    load(.)
+    
+    # browser()
+    
+    # return(CMCs)
+    
+    combinedCMCs <- CMCs %>%
+      group_by(comparisonName,xThresh,corrThresh,thetaThresh) %>%
+      group_split() %>%
+      map_dfr(function(dat){
+        # furrr::future_map(function(dat){
+        
+        # if(unique(dat$comparisonName) == "group4_P0001 vs. group4_P0003" & unique(dat$xThresh) == 20 & unique(dat$corrThresh) == .5){
+        #   browser()
+        # }
+        
+        dat1 <- cmcR::decision_combineDirections(reference_v_target_CMCs = dat %>%
+                                                   filter(direction == "refToTarget"),
+                                                 target_v_reference_CMCs = dat %>%
+                                                   filter(direction == "targetToRef"),
+                                                 compareThetas = FALSE)
+        
+        ret <- dat %>%
+          select(c(comparisonName,xThresh,corrThresh,thetaThresh)) %>%
+          distinct() %>%
+          tidyr::separate(remove = FALSE,col = comparisonName,
+                          sep = " vs. ",into = c("reference","target")) %>%
+          mutate(originalMethod_refToTarget = nrow(dat1$originalMethodCMCs[[1]]),
+                 originalMethod_targetToRef = nrow(dat1$originalMethodCMCs[[2]]),
+                 highCMC = dat1$highCMCs %>%
+                   select(-direction) %>%
+                   distinct() %>%
+                   nrow())
+        
+        return(ret)
+      })
+    
+    save(combinedCMCs,
+         file = paste0("~/nbtrdScans/wellerCombinedCMCs/",
+                       unique(combinedCMCs$comparisonName),".RData"))
+    
+  })
+```
+
+```{r}
+wellerCombinedCMCs <- map_dfr(list.files("~/nbtrdScans/wellerCombinedCMCs/",full.names = TRUE),
+                              ~ {
+                                
+                                load(.)
+                                
+                                return(combinedCMCs)
+                                
+                              })
+
+wellerCombinedCMCs %>%
+  mutate(refBarrel = str_sub(reference,1,4),
+         targetBarrel = str_sub(target,1,4),
+         type = ifelse(refBarrel == targetBarrel,"match","non-match")) %>%
+  group_by(xThresh,corrThresh) %>%
+  group_split() %>%
+  map_dfr(~{
+    
+    calcVarianceRatio(.,similarityCol = "highCMC")
+    
+  }) %>%
+  group_by(xThresh,corrThresh,type,highCMC,varRatio) %>%
+  tally() %>%
+  group_by(xThresh,corrThresh,type) %>%
+  mutate(n = n/sum(n)) %>%
+  group_by(xThresh,corrThresh) %>%
+  group_split() %>%
+  map(~ {
+    
+    ggplot(data = .) +
+      geom_bar(aes(x = highCMC,y = n,fill = type),stat = "identity") +
+      theme_bw() +
+      labs(title = paste0(unique(.$varRatio)))
+    
+  })
+```
+
+```{r}
+# future:::ClusterRegistry("stop")
+
+future::plan(future::multisession(workers = future::availableCores() - 6))
+
+furrr::future_walk(
+  # test_redoInds,
+  1:length(wellerData$processedScan),
+  function(refInd){
+    purrr::walk(refInd:length(wellerData$processedScan),
+                function(targetInd){
+                  # browser()
+                  
+                  refName <- wellerData$scanName[refInd]
+                  targetName <- wellerData$scanName[targetInd]
+                  
+                  reference <- wellerData$processedScan[[refInd]]
+                  target <- wellerData$processedScan[[targetInd]]
+                  
+                  print(paste0(refName," vs. ",targetName))
+                  
+                  dat <- map_dfr(seq(-30,30,by = 3),
+                                 function(theta){
+                                   
+                                   cmcR::comparison_allTogether(reference = reference,
+                                                                target = target,
+                                                                theta = theta,
+                                                                numCells = 64,
+                                                                maxMissingProp = .85)
+                                   
+                                 }) %>%
+                    mutate(direction = "refToTarget",
+                           comparisonName = paste0(refName," vs. ",targetName))
+                  
+                  dat1 <- 
+                    map_dfr(seq(-30,30,by = 3),
+                            function(theta){
+                              
+                              cmcR::comparison_allTogether(reference = target,
+                                                           target = reference,
+                                                           theta = theta,
+                                                           numCells = 64,
+                                                           maxMissingProp = .85)
+                              
+                            }) %>%
+                    mutate(direction = "targetToRef",
+                           comparisonName = paste0(refName," vs. ",targetName))
+                  
+                  compData <- bind_rows(dat,dat1)
+                  
+                  save(compData,file = paste0("~/nbtrdScans/wellerComparisons_cmcR/",refName,"_vs_",targetName,".RData"))
+                  
+                })
+  })
+
+# future:::ClusterRegistry("stop")
+
+# future::plan(future::multisession(workers = future::availableCores() - 6))
+
+cmcCalced <- list.files("~/nbtrdScans/wellerCMCs_cmcR/")
+
+cmcNeedCalc <- list.files("~/nbtrdScans/wellerComparisons_cmcR/")
+
+furrr::future_walk(
+  # walk(
+  cmcNeedCalc[!(cmcNeedCalc %in% cmcCalced)],
+  # unique(c(train_redoCMCs,cmcNeedCalc[!(cmcNeedCalc %in% cmcCalced)])),
+  function(fileName){
+    
+    print(fileName)
+    
+    load(paste0("~/nbtrdScans/wellerComparisons_cmcR/",fileName))
+    
+    # debugonce(calcCMC_grid)
+    
+    CMCs <- calcCMC_grid(comparisonData = compData)
+    
+    compName <- str_remove(fileName,".RData")
+    
+    save(CMCs,file = paste0("~/nbtrdScans/wellerCMCs_cmcR/",compName,".RData"))
+    
+  })
+
+cmcCalced <- list.files("~/nbtrdScans/wellerCombinedCMCs_cmcR/")
+
+cmcNeedCalc <- list.files("~/nbtrdScans/wellerCMCs_cmcR/")
+
+furrr::future_walk(
+  # furrr::future_map(
+  # list.files("topMatch_largerTrainSet_train_CMCs/",full.names = TRUE),
+  paste0("~/nbtrdScans/wellerCMCs_cmcR/",cmcNeedCalc[!(cmcNeedCalc %in% cmcCalced)]),
+  ~ {
+    
+    load(.)
+    
+    # browser()
+    
+    # return(CMCs)
+    
+    combinedCMCs <- CMCs %>%
+      group_by(comparisonName,xThresh,corrThresh,thetaThresh) %>%
+      group_split() %>%
+      map_dfr(function(dat){
+        # furrr::future_map(function(dat){
+        
+        # if(unique(dat$comparisonName) == "group4_P0001 vs. group4_P0003" & unique(dat$xThresh) == 20 & unique(dat$corrThresh) == .5){
+        #   browser()
+        # }
+        
+        dat1 <- cmcR::decision_combineDirections(reference_v_target_CMCs = dat %>%
+                                                   filter(direction == "refToTarget"),
+                                                 target_v_reference_CMCs = dat %>%
+                                                   filter(direction == "targetToRef"),
+                                                 compareThetas = FALSE)
+        
+        ret <- dat %>%
+          select(c(comparisonName,xThresh,corrThresh,thetaThresh)) %>%
+          distinct() %>%
+          tidyr::separate(remove = FALSE,col = comparisonName,
+                          sep = " vs. ",into = c("reference","target")) %>%
+          mutate(originalMethod_refToTarget = nrow(dat1$originalMethodCMCs[[1]]),
+                 originalMethod_targetToRef = nrow(dat1$originalMethodCMCs[[2]]),
+                 highCMC = dat1$highCMCs %>%
+                   select(-direction) %>%
+                   distinct() %>%
+                   nrow())
+        
+        return(ret)
+      })
+    
+    save(combinedCMCs,
+         file = paste0("~/nbtrdScans/wellerCombinedCMCs_cmcR/",
+                       unique(combinedCMCs$comparisonName),".RData"))
+    
+  })
+```
+
+```{r}
+wellerCombinedCMCs_cmcR <- map_dfr(list.files("~/nbtrdScans/wellerCombinedCMCs_cmcR/",full.names = TRUE),
+                              ~ {
+                                
+                                load(.)
+                                
+                                return(combinedCMCs)
+                                
+                              })
+
+wellerCombinedCMCs_cmcR %>%
+  mutate(refBarrel = str_sub(reference,1,4),
+         targetBarrel = str_sub(target,1,4),
+         type = ifelse(refBarrel == targetBarrel,"match","non-match")) %>%
+  group_by(xThresh,corrThresh) %>%
+  group_split() %>%
+  map_dfr(~{
+    
+    calcVarianceRatio(.,similarityCol = "highCMC")
+    
+  }) %>%
+  group_by(xThresh,corrThresh,type,highCMC,varRatio) %>%
+  tally() %>%
+  group_by(xThresh,corrThresh,type) %>%
+  mutate(n = n/sum(n)) %>%
+  group_by(xThresh,corrThresh) %>%
+  group_split() %>%
+  map(~ {
+    
+    ggplot(data = .) +
+      geom_bar(aes(x = highCMC,y = n,fill = type),stat = "identity") +
+      theme_bw() +
+      labs(title = paste0(unique(.$varRatio)))
+    
+  })
+```
+
+```{r}
+wellerCombinedCMCs_cmcR %>%
+  mutate(refBarrel = str_sub(reference,1,4),
+         targetBarrel = str_sub(target,1,4),
+         type = ifelse(refBarrel == targetBarrel,"match","non-match")) %>%
+  group_by(xThresh,corrThresh) %>%
+  group_split() %>%
+  map_dfr(~{
+    
+    calcVarianceRatio(.,similarityCol = "originalMethod_refToTarget")
+    
+  }) %>%
+  group_by(xThresh,corrThresh,type,highCMC,varRatio) %>%
+  tally() %>%
+  group_by(xThresh,corrThresh,type) %>%
+  mutate(n = n/sum(n)) %>%
+  group_by(xThresh,corrThresh) %>%
+  group_split() %>%
+  map(~ {
+    
+    ggplot(data = .) +
+      geom_bar(aes(x = highCMC,y = n,fill = type),stat = "identity") +
+      theme_bw() +
+      labs(title = paste0(unique(.$varRatio)))
+    
+  })
+```
+
+
