@@ -1,5 +1,7 @@
 # cartridgeCaseScans
-A repository of cartridge case scans referenced in Zemmels et al. (2022)
+A repository of cartridge case scans referenced in Zemmels et al. (2022).
+To ease the reproducibility of the results (avoiding setting working directories, etc.), this repo also contains an R Project that can be accessed by opening cartridgeCaseScans.Rproj.
+After opening the project in RStudio, the user should be able to run the .R scripts in the scripts directory without any additional efforts.
 
 ## Repo Structure
 
@@ -7,15 +9,13 @@ A repository of cartridge case scans referenced in Zemmels et al. (2022)
 
 - wellerMasked: 95 cartridge case scans from Weller et al. (2012) with masks added manually using the FiX3P software
 
-- scripts: .Rmd files to process the scans in the fadulMasked and wellerMasked folders to the scans in the fadulProcessed and wellerProcessed folders, respectively.
+- scripts: .R files to process the scans in the fadulMasked and wellerMasked folders to the scans in the fadulProcessed and wellerProcessed folders, respectively. Also includes code to reproduce the results shared in Zemmels et al. (2022).
 
 ## Important Links
 
 - The masks were manually added to the scans using the [FiX3P software](https://chrome.google.com/webstore/detail/fix3p/ffochpnkiambfombejldglggmpebjpjj)
 
 - The scans were processed using the R programming languages and the [x3ptools](https://github.com/heike/x3ptools) and [cmcR](https://github.com/CSAFE-ISU/cmcR) packages
-
-
 
 ## References
 
