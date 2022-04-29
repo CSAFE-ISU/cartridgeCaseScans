@@ -59,19 +59,45 @@ future:::ClusterRegistry("stop")
 future::plan(future::multisession(workers = future::availableCores() - 5))
 
 furrr::future_walk(1:(length(fadulProcessed) - 1),
-                    function(refInd){
-                      map((refInd + 1):length(fadulProcessed),
-                          function(targInd){
+                   function(refInd){
+                     map((refInd + 1):length(fadulProcessed),
+                         function(targInd){
 
-                            ref <- fadulProcessed[[refInd]]
-                            targ <- fadulProcessed[[targInd]]
+                           ref <- fadulProcessed[[refInd]]
+                           targ <- fadulProcessed[[targInd]]
 
-                            CMCs <- purrr::map_dfr(seq(-30,30,by = 3),
+                           CMCs <- purrr::map_dfr(seq(-30,30,by = 3),
+                                                  function(theta){
+
+                                                    comparison_cellDivision(ref,c(8,8)) %>%
+                                                      dplyr::mutate(regionHeightValues = comparison_getTargetRegions(cellHeightValues = .data$cellHeightValues,
+                                                                                                                     target = targ,
+                                                                                                                     theta = theta,
+                                                                                                                     method = "legacy")) %>%
+                                                      dplyr::mutate(cellPropMissing = comparison_calcPropMissing(.data$cellHeightValues),
+                                                                    regionPropMissing = comparison_calcPropMissing(.data$regionHeightValues)) %>%
+                                                      dplyr::filter(.data$cellPropMissing <= .9 & .data$regionPropMissing <= .9) %>%
+                                                      dplyr::mutate(cellHeightValues = comparison_standardizeHeights(.data$cellHeightValues),
+                                                                    regionHeightValues = comparison_standardizeHeights(.data$regionHeightValues)) %>%
+                                                      dplyr::mutate(cellHeightValues_replaced = comparison_replaceMissing(.data$cellHeightValues),
+                                                                    regionHeightValues_replaced = comparison_replaceMissing(.data$regionHeightValues)) %>%
+                                                      dplyr::mutate(fft_ccf_df = comparison_fft_ccf(cellHeightValues = .data$cellHeightValues_replaced,
+                                                                                                    regionHeightValues = .data$regionHeightValues_replaced)) %>%
+                                                      dplyr::mutate(pairwiseCompCor = comparison_cor(.data$cellHeightValues,.data$regionHeightValues,.data$fft_ccf_df)) %>%
+                                                      tidyr::unnest(.data$fft_ccf_df) %>%
+                                                      dplyr::select(.data$cellIndex,.data$x,.data$y,.data$fft_ccf,.data$pairwiseCompCor) %>%
+                                                      dplyr::mutate(theta = theta)
+
+                                                  })  %>%
+                             mutate(comparisonName = paste0(scanNames[refInd]," vs. ",scanNames[targInd]),
+                                    direction = "reference_vs_target")
+
+                           CMCs1 <- purrr::map_dfr(seq(-30,30,by = 3),
                                                    function(theta){
 
-                                                     comparison_cellDivision(ref,c(8,8)) %>%
+                                                     comparison_cellDivision(targ,c(8,8)) %>%
                                                        dplyr::mutate(regionHeightValues = comparison_getTargetRegions(cellHeightValues = .data$cellHeightValues,
-                                                                                                                      target = targ,
+                                                                                                                      target = ref,
                                                                                                                       theta = theta,
                                                                                                                       method = "legacy")) %>%
                                                        dplyr::mutate(cellPropMissing = comparison_calcPropMissing(.data$cellHeightValues),
@@ -89,41 +115,15 @@ furrr::future_walk(1:(length(fadulProcessed) - 1),
                                                        dplyr::mutate(theta = theta)
 
                                                    })  %>%
-                              mutate(comparisonName = paste0(scanNames[refInd]," vs. ",scanNames[targInd]),
-                                     direction = "reference_vs_target")
+                             mutate(comparisonName = paste0(scanNames[refInd]," vs. ",scanNames[targInd]),
+                                    direction = "target_vs_reference")
 
-                            CMCs1 <- purrr::map_dfr(seq(-30,30,by = 3),
-                                                    function(theta){
+                           compData <- bind_rows(CMCs,CMCs1)
 
-                                                      comparison_cellDivision(targ,c(8,8)) %>%
-                                                        dplyr::mutate(regionHeightValues = comparison_getTargetRegions(cellHeightValues = .data$cellHeightValues,
-                                                                                                                       target = ref,
-                                                                                                                       theta = theta,
-                                                                                                                       method = "legacy")) %>%
-                                                        dplyr::mutate(cellPropMissing = comparison_calcPropMissing(.data$cellHeightValues),
-                                                                      regionPropMissing = comparison_calcPropMissing(.data$regionHeightValues)) %>%
-                                                        dplyr::filter(.data$cellPropMissing <= .9 & .data$regionPropMissing <= .9) %>%
-                                                        dplyr::mutate(cellHeightValues = comparison_standardizeHeights(.data$cellHeightValues),
-                                                                      regionHeightValues = comparison_standardizeHeights(.data$regionHeightValues)) %>%
-                                                        dplyr::mutate(cellHeightValues_replaced = comparison_replaceMissing(.data$cellHeightValues),
-                                                                      regionHeightValues_replaced = comparison_replaceMissing(.data$regionHeightValues)) %>%
-                                                        dplyr::mutate(fft_ccf_df = comparison_fft_ccf(cellHeightValues = .data$cellHeightValues_replaced,
-                                                                                                      regionHeightValues = .data$regionHeightValues_replaced)) %>%
-                                                        dplyr::mutate(pairwiseCompCor = comparison_cor(.data$cellHeightValues,.data$regionHeightValues,.data$fft_ccf_df)) %>%
-                                                        tidyr::unnest(.data$fft_ccf_df) %>%
-                                                        dplyr::select(.data$cellIndex,.data$x,.data$y,.data$fft_ccf,.data$pairwiseCompCor) %>%
-                                                        dplyr::mutate(theta = theta)
+                           save(compData,file = paste0("comparisonResults/",scanNames[refInd]," vs. ",scanNames[targInd],".RData"))
 
-                                                    })  %>%
-                              mutate(comparisonName = paste0(scanNames[refInd]," vs. ",scanNames[targInd]),
-                                     direction = "target_vs_reference")
-
-                            compData <- bind_rows(CMCs,CMCs1)
-
-                            save(compData,file = paste0("comparisonResults/",scanNames[refInd]," vs. ",scanNames[targInd],".RData"))
-
-                          })
-                    })
+                         })
+                   })
 
 
 if(!dir.exists("cmcResults")){
@@ -209,4 +209,35 @@ furrr::future_walk(1:(length(fadulProcessed) - 1),
                           })
                    })
 
+cmcCounts <- map_dfr(list.files("combinedCMC/",full.names = TRUE),
+                     function(fileName){
 
+                       load(fileName)
+
+                       return(combinedCMC)
+
+                     })
+
+cmcCounts %>%
+  filter(xThresh == 20 & thetaThresh == 6 & corrThresh == .5) %>%
+  tidyr::separate(col = "comparisonName",into = c("reference","target"),sep = " vs. ",remove = FALSE) %>%
+  left_join(matchDictionary,by = c("reference" = "scanName")) %>%
+  rename(refBarrel = barrelNum) %>%
+  left_join(matchDictionary,by = c("target" = "scanName")) %>%
+  rename(targBarrel = barrelNum) %>%
+  mutate(type = ifelse(refBarrel == targBarrel,"match","non-match")) %>%
+  ggplot(aes(x=highCMC,y=..density..,fill = type)) +
+  geom_histogram(binwidth = 1)
+
+cmcCounts %>%
+  filter(xThresh == 20 & thetaThresh == 6 & corrThresh == .5) %>%
+  group_by(comparisonName) %>%
+  mutate(originalMethod = min(c(original_rToT,original_tToR))) %>%
+  tidyr::separate(col = "comparisonName",into = c("reference","target"),sep = " vs. ",remove = FALSE) %>%
+  left_join(matchDictionary,by = c("reference" = "scanName")) %>%
+  rename(refBarrel = barrelNum) %>%
+  left_join(matchDictionary,by = c("target" = "scanName")) %>%
+  rename(targBarrel = barrelNum) %>%
+  mutate(type = ifelse(refBarrel == targBarrel,"match","non-match")) %>%
+  ggplot(aes(x=originalMethod,y=..density..,fill = type)) +
+  geom_histogram(binwidth = 1)
