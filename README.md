@@ -7,7 +7,11 @@ After opening the project in RStudio, the user should be able to run the .R scri
 
 - fadulMasked: 40 cartridge case scans from Fadul et al. (2011) with masks added manually using the FiX3P software
 
+- fadulProcessed: Processed versions of the Fadul cartridge cases using functions from the x3ptools and cmcR packages (see scripts folder for more information)
+
 - wellerMasked: 95 cartridge case scans from Weller et al. (2012) with masks added manually using the FiX3P software
+
+- wellerProcessed: Processed versions of the Weller cartridge cases using functions from the x3ptools and cmcR packages (see scripts folder for more information)
 
 - scripts: .R files to process the scans in the fadulMasked and wellerMasked folders to the scans in the fadulProcessed and wellerProcessed folders, respectively. Also includes code to reproduce the results shared in Zemmels et al. (2022).
 
