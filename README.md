@@ -21,6 +21,8 @@ After opening the project in RStudio, the user should be able to run the .R scri
 
 - The scans were processed using the R programming languages and the [x3ptools](https://github.com/heike/x3ptools) and [cmcR](https://github.com/CSAFE-ISU/cmcR) packages
 
+- For more information on how these scans were used, see: [https://github.com/jzemmels/cmcRwriteUp/](https://github.com/jzemmels/cmcRwriteUp/)
+
 ## References
 
 T. Fadul, G. Hernandez, S. Stoiloff, and G. Sneh. An Empirical Study to Improve the Scientific Foundation of Forensic Firearm and Tool Mark Identification Utilizing 10 Consecutively Manufactured Slides, 2011. URL https://www.ojp.gov/pdffiles1/nij/grants/237960.pdf
