@@ -57,6 +57,8 @@ This work is licensed under the Creative Commons Attribution (CC-BY) 4.0 Interna
 
 [x3ptools](https://github.com/heike/x3ptools) and [cmcR](https://github.com/CSAFE-ISU/cmcR) R packages
 
+- For more information on how these scans were used, see: [https://github.com/jzemmels/cmcRwriteUp/](https://github.com/jzemmels/cmcRwriteUp/)
+
 ## References
 
 Fadul T., Hernandez G., Stoiloff S. and Gulati Sneh “An Empirical Study to Improve the Scientific Foundation of Forensic Firearm and Tool Mark Identification Utilizing 10 Consecutively Manufactured Slides,” 2011 NCJRS 237960
