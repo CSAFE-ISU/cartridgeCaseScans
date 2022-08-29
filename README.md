@@ -1,6 +1,6 @@
 # cartridgeCaseScans
 
- A repository of cartridge case scans referenced in Zemmels et al. (2022). Each scan is stored in an XML 3D Surface Profile (x3p) file format. These x3ps contain both the scanned cartridge case surface values in a 2D "surface matrix" as well as metadata concerning the parameters under which the scan was taken (scan size, resolution, name of creator, microscope, microscopy softare versions, etc.).
+A repository of cartridge case scans referenced in Zemmels et al. (2022). This data set is useful as a benchmark for testing and validating automatic cartridge case comparison algorithms. This data set could also be used as an interesting application of image processing/computer vision techniques. Each scan is stored in an XML 3D Surface Profile (x3p) file format. These x3ps contain both the scanned cartridge case surface values in a 2D "surface matrix" as well as metadata concerning the parameters under which the scan was taken (scan size, resolution, name of creator, microscope, microscopy software versions, etc.).
 
 ## Authors 
 
@@ -23,6 +23,8 @@ The Fadul scans were originally taken on 01-24-2011 by Xiaoyu (Alan) Zheng
 The Weller scans were originally taken on 09-23-2009 by Todd Weller
 
 ## Repo Structure
+
+For more details about the contents of the repo, see the MANIFEST.md file.
 
 - fadulMasked: 40 cartridge case scans from Fadul et al. (2011) with masks added manually using the FiX3P software
 
