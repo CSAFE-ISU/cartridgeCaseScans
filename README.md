@@ -1,7 +1,26 @@
 # cartridgeCaseScans
-A repository of cartridge case scans referenced in Zemmels et al. (2022).
-To ease the reproducibility of the results (avoiding setting working directories, etc.), this repo also contains an R Project that can be accessed by opening cartridgeCaseScans.Rproj.
-After opening the project in RStudio, the user should be able to run the .R scripts in the scripts directory without any additional efforts.
+
+ A repository of cartridge case scans referenced in Zemmels et al. (2022). Each scan is stored in an XML 3D Surface Profile (x3p) file format. These x3ps contain both the scanned cartridge case surface values in a 2D "surface matrix" as well as metadata concerning the parameters under which the scan was taken (scan size, resolution, name of creator, microscope, microscopy softare versions, etc.).
+
+## Authors 
+
+Author: Joseph Zemmels
+Institution: Iowa State University
+Email: jzemmels@iastate.edu
+
+Author: Susan VanderPlas
+Institution: University of Nebraska - Lincoln
+Email: susan.vanderplas@unl.edu
+
+Author: Heike Hofmann
+Institution: Iowa State University
+Email: hofmann@iastate.edu
+
+## Collection Information
+
+The Fadul scans were originally taken on 01-24-2011 by Xiaoyu (Alan) Zheng
+
+The Weller scans were originally taken on 09-23-2009 by Todd Weller
 
 ## Repo Structure
 
@@ -15,14 +34,33 @@ After opening the project in RStudio, the user should be able to run the .R scri
 
 - scripts: .R files to process the scans in the fadulMasked and wellerMasked folders to the scans in the fadulProcessed and wellerProcessed folders, respectively. Also includes code to reproduce the results shared in Zemmels et al. (2022).
 
+## Methods & Materials
+
+### Data Collection Methods
+
+Both the Fadul and Weller scans were taken using a NanoFocus usurf V.6.12.6 [learn more here](https://www.nanofocus.com/products/usurf/usurf-custom/)
+
+### Data Processing Methods
+
+The masks were manually added to the scans using the [FiX3P software](https://chrome.google.com/webstore/detail/fix3p/ffochpnkiambfombejldglggmpebjpjj). 
+The scans were processed using the R programming languages and the [x3ptools](https://github.com/heike/x3ptools) and [cmcR](https://github.com/CSAFE-ISU/cmcR) packages
+
+## Licensing
+
+This work is licensed under the Creative Commons Attribution (CC-BY) 4.0 International License. For more information visit: https://creativecommons.org/licenses/by/4.0 
+
 ## Important Links
 
-- The masks were manually added to the scans using the [FiX3P software](https://chrome.google.com/webstore/detail/fix3p/ffochpnkiambfombejldglggmpebjpjj)
+[NIST Ballistics Toolmark Research Database](https://tsapps.nist.gov/NRBTD/)
 
-- The scans were processed using the R programming languages and the [x3ptools](https://github.com/heike/x3ptools) and [cmcR](https://github.com/CSAFE-ISU/cmcR) packages
+[FiX3P software](https://chrome.google.com/webstore/detail/fix3p/ffochpnkiambfombejldglggmpebjpjj)
+
+[x3ptools](https://github.com/heike/x3ptools) and [cmcR](https://github.com/CSAFE-ISU/cmcR) R packages
 
 ## References
 
-T. Fadul, G. Hernandez, S. Stoiloff, and G. Sneh. An Empirical Study to Improve the Scientific Foundation of Forensic Firearm and Tool Mark Identification Utilizing 10 Consecutively Manufactured Slides, 2011. URL https://www.ojp.gov/pdffiles1/nij/grants/237960.pdf
+Fadul T., Hernandez G., Stoiloff S. and Gulati Sneh “An Empirical Study to Improve the Scientific Foundation of Forensic Firearm and Tool Mark Identification Utilizing 10 Consecutively Manufactured Slides,” 2011 NCJRS 237960
 
-T. J. Weller, A. Zheng, R. Thompson, and F. Tulleners. Confocal microscopy analysis of breech face marks on fired cartridge cases from 10 consecutively manufactured pistol slides. 57(4), mar 2012. URL https://doi.org/10.1111/j.1556-4029.2012.02072.x
+Weller T, Zheng A, Thompson R and Tulleners F, "Confocal Microscopy Analysis of Breech Face Marks on Fired Cartridge Cases from Ten Consecutively Manufactured Pistol Slides," Journal of Forensic Sciences, 57, Pg. 912-917, 2012
+
+Zheng, X., Soons, J., Thompson, R., Singh, S., & Constantin, C. (2020). NIST Ballistics Toolmark Research Database. In Journal of Research of the National Institute of Standards and Technology (Vol. 125). National Institute of Standards and Technology (NIST). https://doi.org/10.6028/jres.125.004 
